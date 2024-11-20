@@ -1,151 +1,113 @@
+/*
+ * Copyright 2023 The TensorFlow Authors. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *             http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import 'dart:io';
-import 'dart:nativewrappers/_internal/vm/lib/typed_data_patch.dart';
+
+import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:tflite_flutter/tflite_flutter.dart';
-import 'package:image/image.dart' as img;
+import 'package:yolo1/ui/camera.dart';
+import 'package:yolo1/ui/gallery.dart';
 
-void main() => runApp(MyApp());
 
-class MyApp extends StatelessWidget {
+Future<void> main() async {
+  runApp(const BottomNavigationBarApp());
+}
+
+class BottomNavigationBarApp extends StatelessWidget {
+  const BottomNavigationBarApp({super.key});
+
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      home: ImagePickerScreen(),
+    return const MaterialApp(
+      home: BottomNavigationBarExample(),
     );
   }
 }
 
-class ImagePickerScreen extends StatefulWidget {
+class BottomNavigationBarExample extends StatefulWidget {
+  const BottomNavigationBarExample({super.key});
+
   @override
-  _ImagePickerScreenState createState() => _ImagePickerScreenState();
+  State<BottomNavigationBarExample> createState() =>
+      _BottomNavigationBarExampleState();
 }
 
-class _ImagePickerScreenState extends State<ImagePickerScreen> {
-  File? _image;
-  final picker = ImagePicker();
-  Interpreter? _interpreter;
-  List<String> _labels = [];
-  String _predictionResult = '';
+class _BottomNavigationBarExampleState
+    extends State<BottomNavigationBarExample> {
+  late CameraDescription cameraDescription;
+  int _selectedIndex = 0;
+  List<Widget>? _widgetOptions;
+
+  bool cameraIsAvailable = Platform.isAndroid || Platform.isIOS;
 
   @override
   void initState() {
     super.initState();
-    _loadModel();
-    _loadLabels();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      initPages();
+    });
   }
 
-  Future<void> _loadModel() async {
-    if(_interpreter != null) return;
-    try {
-      // _interpreter = await Interpreter.fromAsset('yolomodel.tflite');
-      _interpreter = await Interpreter.fromAsset('assets/yolomodel.tflite');
-      print("Data from tensors input ${_interpreter!.getInputTensors()}");
-      print('Model loaded successfully');
-    } catch (e) {
-      print('Error loading model: $e');
+  initPages() async {
+    _widgetOptions = [const GalleryScreen()];
+
+    if (cameraIsAvailable) {
+      // get list available camera
+      cameraDescription = (await availableCameras()).first;
+      _widgetOptions!.add(CameraScreen(camera: cameraDescription));
     }
+
+    setState(() {});
   }
 
-  Future<void> _loadLabels() async {
-    if(_labels.isNotEmpty) return;
-    try {
-      final labelsData =
-      await DefaultAssetBundle.of(context).loadString('assets/labels.txt');
-      setState(() {
-        _labels = labelsData.split('\n');
-      });
-      print('Labels loaded successfully');
-    } catch (e) {
-      print('Error loading labels: $e');
-    }
-  }
-
-  Future<void> _pickImage() async {
-    final pickedFile = await picker.pickImage(source: ImageSource.camera,
-      maxHeight: 640,
-      maxWidth: 640,);
-
-    if (pickedFile != null) {
-      setState(() {
-        _image = File(pickedFile.path);
-        _predictionResult = '';
-      });
-      _predictImage(_image!);
-    }
-  }
-
-
-
-  Future<void> _predictImage(File image) async {
-    print("Predict Image Method called");
-    if (_interpreter == null || _labels.isEmpty) {
-      print('Model or labels not loaded');
+  void _onItemTapped(int index) {
+    if (!cameraIsAvailable) {
+      debugPrint("This is not supported on your current platform");
       return;
     }
-
-    try {
-
-      var input = image;
-
-      // YOLO models typically return a large output tensor with predictions
-      var output = List.generate(1, (_) => List.filled(_labels.length, 0.0));
-
-      _interpreter!.run([input], output);
-
-      if (output.isNotEmpty) {
-        // Extract the highest probability prediction
-        final maxIndex = output[0].indexOf(output[0].reduce((a, b) => a > b ? a : b));
-        setState(() {
-          _predictionResult = _labels[maxIndex];
-        });
-        print("Prediction Result: $_predictionResult");
-      } else {
-        print("Output length is zero");
-      }
-    } catch (e) {
-      print('Error during prediction: $e');
-    }
+    setState(() {
+      _selectedIndex = index;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder(
-      // future: Future.wait([debugAssetPath()]),
-      future: Future.wait([_loadModel(), _loadLabels()]),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return Center(child: CircularProgressIndicator());
-        } else if (snapshot.hasError) {
-          return Center(child: Text('Error loading model or labels'));
-        } else {
-          return Scaffold(
-            appBar: AppBar(title: Text('Image Picker & Prediction')),
-            body: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  _image == null
-                      ? Text('No image selected.')
-                      : Image.file(_image!, width: 200, height: 200),
-                  SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: _pickImage,
-                    child: Text('Pick Image'),
-                  ),
-                  SizedBox(height: 16),
-                  Text(
-                    'Prediction: $_predictionResult',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                ],
-              ),
-            ),
-          );
-        }
-      },
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text("TFlite Project"),
+        backgroundColor: Colors.black.withOpacity(0.5),
+      ),
+      body: Center(
+        child: _widgetOptions?.elementAt(_selectedIndex),
+      ),
+      bottomNavigationBar: BottomNavigationBar(
+        items: const <BottomNavigationBarItem>[
+          BottomNavigationBarItem(
+            icon: Icon(Icons.image),
+            label: 'Gallery screen',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.camera),
+            label: 'Live Camera',
+          ),
+        ],
+        currentIndex: _selectedIndex,
+        selectedItemColor: Colors.amber[800],
+        onTap: _onItemTapped,
+      ),
     );
   }
-
 }

@@ -2,8 +2,7 @@ Bru Coffee
 Choco Pie  
 CloseUp  
 Coca Cola  
-Cocoa Powder  
-Colgate  
+Cocoa Powder
 Diet Coke  
 Hersheys  
 Hide n Seek  
@@ -17,4 +16,5 @@ Pears
 Pedigree  
 Perk  
 Pringles  
-Yippee  
+Yippee
+Colgate
